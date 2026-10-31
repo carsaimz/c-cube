@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  web:
+    name: Web (build estática)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependências
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Verificação de tipos
+        run: bunx tsc --noEmit
+
+      - name: Build estático (usado por Android/Electron)
+        run: npm run build:static
+
+      - name: Carregar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-cube-web
+          path: .next-static
+          retention-days: 7

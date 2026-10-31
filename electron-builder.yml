@@ -1,0 +1,33 @@
+appId: com.carsaimz.cube
+productName: C-Cube
+copyright: Copyright © 2026 carsaimz
+directories:
+  output: release
+files:
+  - electron/**/*
+  - out/**/*
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: C-Cube-Setup-${version}.${ext}
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: Game
+  artifactName: C-Cube-${version}.${ext}
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+  category: public.app-category.games
+  artifactName: C-Cube-${version}.${ext}
