@@ -40,5 +40,5 @@ export default function CubeCanvas() {
     useGameStore.getState().view?.setFramed(status !== "menu");
   }, [status]);
 
-  return <div ref={ref} className="absolute inset-0" aria-hidden="true" />;
+  return <div ref={ref} className="absolute inset-0 overflow-hidden" aria-hidden="true" />;
 }

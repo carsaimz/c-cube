@@ -463,9 +463,10 @@ export class CubeView {
       return;
     }
     const h = Math.max(1, this.container.clientHeight);
-    // HUD superior ~8% da altura, dock inferior ~13% (com mínimos em px)
-    const top = Math.max(56, h * 0.085);
-    const bottom = Math.max(96, h * 0.14);
+    // HUD superior (título+timer) e dock inferior (controlos) medidos ao layout:
+    // top ≈ 64px, bottom ≈ 7rem (105px) + safe-area; usamos máximos prudentes.
+    const top = Math.max(64, h * 0.085);
+    const bottom = Math.max(112, h * 0.14);
     this.frameShiftTarget = Math.max(0, (bottom - top) / 2);
   }
 
@@ -523,7 +524,11 @@ export class CubeView {
     const h = this.container.clientHeight || 1;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h, false);
+    // CRÍTICO: updateStyle tem de ficar ativo (default). Com `false`, o <canvas>
+    // mantinha o tamanho CSS = buffer interno (w*dpr × h*dpr px) — 2× o ecrã
+    // em dpr 2 — e o cubo aparecia no canto inferior direito, além de os gestos
+    // ficarem desalinhados. Era a causa do bug "cubo não centra".
+    this.renderer.setSize(w, h);
     this.updateFrameShiftTarget();
   }
 
@@ -704,15 +709,17 @@ export class CubeView {
       }
     }
 
-    // desvio vertical animado (enquadramento entre HUD e dock)
-    const prevShift = this.frameShift;
+    // desvio vertical animado (enquadramento entre HUD e dock).
+    // y NEGATIVO: com setViewOffset, y positivo sobe o conteúdo (para debaixo
+    // do HUD); queremos descer o cubo para a zona livre, pelo que o sinal é
+    // invertido. Aplicado em TODOS os frames — nunca fica preso a meio.
     this.frameShift += (this.frameShiftTarget - this.frameShift) * 0.08;
-    if (Math.abs(this.frameShift - this.frameShiftTarget) > 0.05 && Math.abs(prevShift - this.frameShift) > 0.0005) {
+    {
       const w = this.container.clientWidth || 1;
       const h = this.container.clientHeight || 1;
       if (this.frameShift > 0.5) {
-        this.camera.setViewOffset(w, h, 0, this.frameShift, w, h);
-      } else {
+        this.camera.setViewOffset(w, h, 0, -this.frameShift, w, h);
+      } else if (this.camera.view !== null) {
         this.camera.clearViewOffset();
       }
     }
