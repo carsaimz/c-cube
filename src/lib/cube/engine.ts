@@ -229,10 +229,78 @@ export function movesToNotation(size: number, moves: Move[]): string {
 
 export const SCRAMBLE_LENGTH: Record<number, number> = { 2: 14, 3: 24, 4: 32, 5: 36 };
 
+// ------------------------------------------------------------------ dificuldade
+
+export type Difficulty = "easy" | "normal" | "hard" | "extreme";
+
+export interface DifficultyInfo {
+  id: Difficulty;
+  name: string;
+  /** cor tailwind para o chip */
+  color: string;
+}
+
+export const DIFFICULTIES: DifficultyInfo[] = [
+  { id: "easy", name: "Fácil", color: "#4ade80" },
+  { id: "normal", name: "Normal", color: "#fbbf24" },
+  { id: "hard", name: "Difícil", color: "#fb923c" },
+  { id: "extreme", name: "Extremo", color: "#f87171" },
+];
+
+/** Fator de comprimento do embaralhamento por dificuldade. */
+const SCRAMBLE_FACTOR: Record<Difficulty, number> = {
+  easy: 0.5,
+  normal: 0.75,
+  hard: 1,
+  extreme: 1.35,
+};
+
+/** Comprimento do embaralhamento (tamanho + dificuldade). */
+export function scrambleLength(size: number, diff: Difficulty): number {
+  const base = SCRAMBLE_LENGTH[size] ?? 24;
+  return Math.max(4, Math.round(base * SCRAMBLE_FACTOR[diff]));
+}
+
+/** Multiplicador de tempo por tamanho (cubos maiores precisam de mais tempo). */
+const SIZE_TIME_FACTOR: Record<number, number> = { 2: 0.55, 3: 1, 4: 1.8, 5: 2.6 };
+
+/** Limite de tempo do modo Sprint (ms). */
+export function sprintTimeLimit(size: number, diff: Difficulty): number {
+  const base: Record<Difficulty, number> = { easy: 480_000, normal: 300_000, hard: 180_000, extreme: 90_000 };
+  return Math.round(base[diff] * (SIZE_TIME_FACTOR[size] ?? 1));
+}
+
+/** Orçamento de movimentos do modo Eficiência. */
+export function moveBudget(size: number, diff: Difficulty): number {
+  const factor: Record<Difficulty, number> = { easy: 2.6, normal: 2, hard: 1.7, extreme: 1.4 };
+  return Math.ceil(scrambleLength(size, diff) * factor[diff]);
+}
+
+/** Tempo de memorização do modo Memória (ms). */
+export function memoryStudyMs(diff: Difficulty): number {
+  return { easy: 12_000, normal: 8_000, hard: 5_000, extreme: 3_000 }[diff];
+}
+
+/** Penalização (ms) de cada espreitadela no modo Memória. */
+export const PEEK_PENALTY_MS = 5_000;
+/** Duração de uma espreitadela (ms). */
+export const PEEK_DURATION_MS = 2_000;
+
+/** Etapas da Maratona (tamanhos por ordem). */
+export const MARATHON_STAGES: number[] = [2, 3, 4];
+
 export function formatTime(ms: number): string {
   const total = Math.max(0, ms);
   const m = Math.floor(total / 60000);
   const s = Math.floor((total % 60000) / 1000);
   const d = Math.floor((total % 1000) / 100);
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${d}`;
+}
+
+/** Cronómetro de contagem decrescente (mm:ss). */
+export function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }

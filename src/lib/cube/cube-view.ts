@@ -44,6 +44,15 @@ interface AnimState {
   duration: number;
 }
 
+interface CamTween {
+  fromPos: THREE.Vector3;
+  toPos: THREE.Vector3;
+  fromTarget: THREE.Vector3;
+  toTarget: THREE.Vector3;
+  start: number;
+  duration: number;
+}
+
 const HALF_PI = Math.PI / 2;
 const AXIS_VEC: Record<Axis, THREE.Vector3> = {
   x: new THREE.Vector3(1, 0, 0),
@@ -58,6 +67,10 @@ function easeOutCubic(t: number): number {
 
 function easeOutQuad(t: number): number {
   return 1 - (1 - t) * (1 - t);
+}
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 function defaultDuration(m: Move, queueLen: number): number {
@@ -106,6 +119,13 @@ export class CubeView {
   private pulseStart = -1;
   private idle = true;
   private disposed = false;
+  private blind = false;
+  private blindTexture: THREE.CanvasTexture | null = null;
+  private framed = false;
+  private frameShift = 0; // px atuais do desvio vertical (animado)
+  private frameShiftTarget = 0;
+  private camTween: CamTween | null = null;
+  private defaultCamPos = new THREE.Vector3();
   private drag: {
     x0: number;
     y0: number;
@@ -163,6 +183,7 @@ export class CubeView {
     this.fitCamera();
 
     this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown);
+    this.renderer.domElement.addEventListener("dblclick", this.onDblClick);
     window.addEventListener("pointermove", this.onPointerMove);
     window.addEventListener("pointerup", this.onPointerUp);
     window.addEventListener("pointercancel", this.onPointerUp);
@@ -318,6 +339,37 @@ export class CubeView {
     this.buildShadow();
   }
 
+  /** Textura neutra para o modo Memória (cubo "cego" — adesivos cinzentos). */
+  private makeBlindTexture(): THREE.CanvasTexture {
+    if (this.blindTexture) return this.blindTexture;
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const g = canvas.getContext("2d");
+    if (g) {
+      const m = 10;
+      const grad = g.createRadialGradient(96, 78, 20, 128, 128, 190);
+      grad.addColorStop(0, "#5b6070");
+      grad.addColorStop(0.55, "#454a58");
+      grad.addColorStop(1, "#333743");
+      g.fillStyle = grad;
+      roundRect(g, m, m, 256 - 2 * m, 256 - 2 * m, 62);
+      g.fill();
+      g.strokeStyle = "rgba(0,0,0,0.25)";
+      g.lineWidth = 5;
+      roundRect(g, m + 3, m + 3, 256 - 2 * m - 6, 256 - 2 * m - 6, 58);
+      g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.07)";
+      roundRect(g, m + 14, m + 12, 256 - 2 * m - 28, 70, 44);
+      g.fill();
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    this.blindTexture = tex;
+    return tex;
+  }
+
   private buildShadow(): void {
     if (this.shadowMesh) {
       this.scene.remove(this.shadowMesh);
@@ -360,6 +412,15 @@ export class CubeView {
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (!mat || Array.isArray(mat)) return;
         if (mat.map) {
+          if (this.blind) {
+            // modo memória: adesivos neutros, sem brilho
+            mat.map = this.makeBlindTexture();
+            mat.emissive = new THREE.Color(0x000000);
+            mat.emissiveMap = null;
+            mat.emissiveIntensity = 0;
+            mat.needsUpdate = true;
+            return;
+          }
           // adesivo: descobrir face pela orientação local
           const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(mesh.quaternion);
           const faceIndex =
@@ -385,20 +446,76 @@ export class CubeView {
   // ------------------------------------------------------------------ câmara
 
   private fitCamera(): void {
+    const r = this.idealCameraDistance();
+    this.camera.position.set(r * 0.66, r * 0.5, r * 0.82);
+    this.camera.lookAt(0, 0, 0);
+    this.controls.target.set(0, 0, 0);
+    this.controls.minDistance = this.size * 1.7 + 0.8;
+    this.controls.maxDistance = r * 1.9;
+    this.controls.update();
+    this.updateFrameShiftTarget();
+  }
+
+  /** Distância vertical (px) entre o centro do ecrã e o centro da zona livre entre HUD e dock. */
+  private updateFrameShiftTarget(): void {
+    if (!this.framed) {
+      this.frameShiftTarget = 0;
+      return;
+    }
+    const h = Math.max(1, this.container.clientHeight);
+    // HUD superior ~8% da altura, dock inferior ~13% (com mínimos em px)
+    const top = Math.max(56, h * 0.085);
+    const bottom = Math.max(96, h * 0.14);
+    this.frameShiftTarget = Math.max(0, (bottom - top) / 2);
+  }
+
+  /**
+   * Repõe a câmara: centro (0,0,0), zoom padrão e orientação de origem, com
+   * animação suave. Chamado pelo botão "Centrar" e por duplo clique no fundo.
+   */
+  resetView(): void {
+    const r = this.idealCameraDistance();
+    this.defaultCamPos.set(r * 0.66, r * 0.5, r * 0.82);
+    this.controls.minDistance = this.size * 1.7 + 0.8;
+    this.controls.maxDistance = r * 1.9;
+    this.camTween = {
+      fromPos: this.camera.position.clone(),
+      toPos: this.defaultCamPos.clone(),
+      fromTarget: this.controls.target.clone(),
+      toTarget: new THREE.Vector3(0, 0, 0), // o offset visual (setViewOffset) trata do enquadramento
+      start: performance.now(),
+      duration: 650,
+    };
+    // repe a deriva do grupo do cubo (flutuação/rotação do menu)
+    this.cubeGroup.position.y = 0;
+    this.cubeGroup.rotation.x = 0;
+    this.cubeGroup.rotation.z = 0;
+  }
+
+  /** Distância ideal da câmara para o tamanho do cubo + aspeto atual do contentor. */
+  private idealCameraDistance(): number {
     const s = this.size;
     const base = s * 2.45 + 1.75;
-    // em ecrãs estreitos (telemóvel), afastar para o cubo caber na largura
     const aspect = this.container.clientWidth / Math.max(1, this.container.clientHeight);
     const halfW = (s * 1.04) / 2 + 0.25;
     const hTan = Math.tan((this.camera.fov * Math.PI) / 360) * Math.max(0.3, aspect);
     const need = (halfW / hTan) * 1.06;
-    const r = Math.min(Math.max(base, need), s * 7 + 4);
-    this.camera.position.set(r * 0.66, r * 0.5, r * 0.82);
-    this.camera.lookAt(0, 0, 0);
-    this.controls.target.set(0, 0, 0);
-    this.controls.minDistance = s * 1.7 + 0.8;
-    this.controls.maxDistance = r * 1.9;
-    this.controls.update();
+    return Math.min(Math.max(base, need), s * 7 + 4);
+  }
+
+  private onDblClick = (e: MouseEvent): void => {
+    // duplo clique em zona vazia (fora do cubo) → recentrar
+    this.updatePointerNDC(e as unknown as PointerEvent);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    if (this.raycaster.intersectObjects(this.hitMeshes, false).length === 0) {
+      this.resetView();
+    }
+  };
+
+  /** Modo jogo: centrar o cubo na zona livre entre o HUD e a barra de controlos. */
+  setFramed(v: boolean): void {
+    this.framed = v;
+    this.updateFrameShiftTarget();
   }
 
   private onResize(): void {
@@ -407,6 +524,7 @@ export class CubeView {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
+    this.updateFrameShiftTarget();
   }
 
   // ---------------------------------------------------------------- gestos
@@ -573,6 +691,32 @@ export class CubeView {
     const now = performance.now();
     const t = now - this.clockStart;
 
+    // tween da câmara (botão centrar / duplo clique)
+    if (this.camTween) {
+      const p = Math.min(1, (now - this.camTween.start) / this.camTween.duration);
+      const e = easeInOutCubic(p);
+      this.camera.position.lerpVectors(this.camTween.fromPos, this.camTween.toPos, e);
+      this.controls.target.lerpVectors(this.camTween.fromTarget, this.camTween.toTarget, e);
+      this.camera.lookAt(this.controls.target);
+      if (p >= 1) {
+        this.camTween = null;
+        this.controls.update();
+      }
+    }
+
+    // desvio vertical animado (enquadramento entre HUD e dock)
+    const prevShift = this.frameShift;
+    this.frameShift += (this.frameShiftTarget - this.frameShift) * 0.08;
+    if (Math.abs(this.frameShift - this.frameShiftTarget) > 0.05 && Math.abs(prevShift - this.frameShift) > 0.0005) {
+      const w = this.container.clientWidth || 1;
+      const h = this.container.clientHeight || 1;
+      if (this.frameShift > 0.5) {
+        this.camera.setViewOffset(w, h, 0, this.frameShift, w, h);
+      } else {
+        this.camera.clearViewOffset();
+      }
+    }
+
     if (!this.anim && this.queue.length > 0) this.startNext();
 
     if (this.anim) {
@@ -612,7 +756,7 @@ export class CubeView {
       }
     }
 
-    this.controls.autoRotate = this.idle || this.pulseStart > 0;
+    this.controls.autoRotate = (this.idle || this.pulseStart > 0) && !this.camTween;
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };
@@ -642,11 +786,19 @@ export class CubeView {
     this.applyThemeToMaterials();
   }
 
+  /** Modo Memória: esconder/mostrar as cores dos adesivos. */
+  setBlind(v: boolean): void {
+    if (this.blind === v) return;
+    this.blind = v;
+    this.applyThemeToMaterials();
+  }
+
   /** Reinicia instantaneamente para o estado resolvido. */
   resetToSolved(): void {
     this.anim = null;
     this.queue = [];
     this.buildCube();
+    if (this.blind) this.applyThemeToMaterials();
   }
 
   dispose(): void {
@@ -654,12 +806,15 @@ export class CubeView {
     this.renderer.setAnimationLoop(null);
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener("pointerdown", this.onPointerDown);
+    this.renderer.domElement.removeEventListener("dblclick", this.onDblClick);
     window.removeEventListener("pointermove", this.onPointerMove);
     window.removeEventListener("pointerup", this.onPointerUp);
     window.removeEventListener("pointercancel", this.onPointerUp);
     this.controls.dispose();
     this.disposeCubeObjects();
     this.clearCache();
+    this.blindTexture?.dispose();
+    this.blindTexture = null;
     this.stickerGeometry.dispose();
     this.bodyGeometry.dispose();
     this.hitboxGeometry.dispose();

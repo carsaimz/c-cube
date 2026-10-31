@@ -10,6 +10,7 @@ files:
   - package.json
 asar: true
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:
@@ -19,6 +20,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   artifactName: C-Cube-Setup-${version}.${ext}
 linux:
+  icon: build/icon.png
   target:
     - target: AppImage
       arch:
@@ -26,6 +28,7 @@ linux:
   category: Game
   artifactName: C-Cube-${version}.${ext}
 mac:
+  icon: build/icon.icns
   target:
     - target: dmg
       arch:

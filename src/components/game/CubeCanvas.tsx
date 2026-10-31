@@ -36,6 +36,8 @@ export default function CubeCanvas() {
 
   useEffect(() => {
     useGameStore.getState().view?.setIdle(status === "menu");
+    // em jogo, centrar o cubo na zona livre entre o HUD e a barra de controlos
+    useGameStore.getState().view?.setFramed(status !== "menu");
   }, [status]);
 
   return <div ref={ref} className="absolute inset-0" aria-hidden="true" />;

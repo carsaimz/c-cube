@@ -1,10 +1,14 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Box,
+  Brain,
   CircleHelp,
+  Eye,
+  Flag,
+  LocateFixed,
   MousePointerClick,
   RotateCcw,
   Settings,
@@ -16,12 +20,18 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { formatTime } from "@/lib/cube/engine";
+import {
+  MARATHON_STAGES,
+  formatCountdown,
+  formatTime,
+  sprintTimeLimit,
+} from "@/lib/cube/engine";
 import { themeById } from "@/lib/cube/themes";
 import { playClick, unlockAudio } from "@/lib/sound";
 import { useGameStore } from "@/store/game";
 import { MenuOverlay } from "./MenuOverlay";
 import { WinOverlay } from "./WinOverlay";
+import { FailOverlay } from "./FailOverlay";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
 
@@ -40,6 +50,14 @@ export default function GameShell() {
   const soundOn = useGameStore((s) => s.soundOn);
   const historyLen = useGameStore((s) => s.history.length);
   const redoLen = useGameStore((s) => s.redoStack.length);
+  const size = useGameStore((s) => s.size);
+  const mode = useGameStore((s) => s.mode);
+  const difficulty = useGameStore((s) => s.difficulty);
+  const budget = useGameStore((s) => s.budget);
+  const memoryPhase = useGameStore((s) => s.memoryPhase);
+  const studyEndsAt = useGameStore((s) => s.studyEndsAt);
+  const studyTotalMs = useGameStore((s) => s.studyTotalMs);
+  const marathonStage = useGameStore((s) => s.marathonStage);
   const { scramble, solve, undo, redo, reset, toggleSound, startGame } = useGameStore.getState();
 
   // cronómetro
@@ -47,6 +65,14 @@ export default function GameShell() {
     const id = setInterval(() => useGameStore.getState().tick(), 100);
     return () => clearInterval(id);
   }, []);
+
+  // re-render local durante a contagem de memorização (timer da store não corre)
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    if (memoryPhase !== "study") return;
+    const id = setInterval(force, 200);
+    return () => clearInterval(id);
+  }, [memoryPhase]);
 
   // desbloquear áudio no primeiro toque (política de autoplay)
   useEffect(() => {
@@ -74,6 +100,13 @@ export default function GameShell() {
   const theme = themeById(themeId);
   const inGame = status !== "menu";
   const busy = status === "scrambling" || status === "solving";
+  const playing = status === "playing";
+
+  // ------- indicadores por modo
+  const sprintLimit = sprintTimeLimit(size, difficulty);
+  const sprintLeft = playing ? sprintLimit - elapsedMs : sprintLimit;
+  const sprintLow = sprintLeft <= 10_000;
+  const studyLeft = studyEndsAt ? Math.max(0, studyEndsAt - Date.now()) : studyTotalMs;
 
   return (
     <main
@@ -84,8 +117,7 @@ export default function GameShell() {
       <div
         className="pointer-events-none absolute inset-0 z-10"
         style={{
-          background:
-            "radial-gradient(95% 75% at 50% 42%, transparent 52%, rgba(0,0,0,0.55) 100%)",
+          background: "radial-gradient(95% 75% at 50% 42%, transparent 52%, rgba(0,0,0,0.55) 100%)",
         }}
       />
 
@@ -116,25 +148,62 @@ export default function GameShell() {
               <span className="text-sm font-bold tracking-tight hidden sm:block">C-Cube</span>
             </button>
 
-            <div className="glass flex items-center gap-2.5 rounded-2xl px-3 sm:px-4 py-2">
-              <span className="flex items-center gap-1.5">
-                <Timer className="h-3.5 w-3.5 text-amber-400" />
-                <span className="font-mono text-sm sm:text-base font-bold tabular-nums leading-none">
-                  {formatTime(elapsedMs)}
+            <div className="glass flex items-center gap-2.5 rounded-2xl px-3 py-2 sm:px-4">
+              {mode === "memory" && memoryPhase === "study" ? (
+                <span className="flex items-center gap-1.5">
+                  <Brain className="h-3.5 w-3.5 text-sky-400" />
+                  <span className="font-mono text-sm sm:text-base font-bold tabular-nums leading-none text-sky-300">
+                    Memoriza {Math.ceil(studyLeft / 1000)}s
+                  </span>
                 </span>
-              </span>
+              ) : mode === "sprint" ? (
+                <span className="flex items-center gap-1.5">
+                  <Timer className={`h-3.5 w-3.5 ${sprintLow && playing ? "animate-pulse text-red-400" : "text-amber-400"}`} />
+                  <span
+                    className={`font-mono text-sm sm:text-base font-bold tabular-nums leading-none ${
+                      sprintLow && playing ? "text-red-400" : ""
+                    }`}
+                  >
+                    {formatCountdown(sprintLeft)}
+                  </span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <Timer className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="font-mono text-sm sm:text-base font-bold tabular-nums leading-none">
+                    {formatTime(elapsedMs)}
+                  </span>
+                </span>
+              )}
               <span className="h-4 w-px bg-white/15" />
-              <span className="flex items-center gap-1.5 text-zinc-300">
-                <MousePointerClick className="h-3.5 w-3.5 text-zinc-500" />
-                <span className="font-mono text-sm font-semibold tabular-nums leading-none">{moveCount}</span>
-              </span>
+              {mode === "efficiency" && budget !== null ? (
+                <span className="flex items-center gap-1.5">
+                  <MousePointerClick className="h-3.5 w-3.5 text-zinc-500" />
+                  <span
+                    className={`font-mono text-sm font-semibold tabular-nums leading-none ${
+                      moveCount >= budget ? "text-red-400" : moveCount >= budget * 0.85 ? "text-amber-300" : "text-zinc-300"
+                    }`}
+                  >
+                    {moveCount}/{budget}
+                  </span>
+                </span>
+              ) : mode === "marathon" ? (
+                <span className="flex items-center gap-1.5 text-zinc-300">
+                  <Flag className="h-3.5 w-3.5 text-sky-400" />
+                  <span className="font-mono text-sm font-semibold tabular-nums leading-none">
+                    {marathonStage + 1}/{MARATHON_STAGES.length}
+                  </span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-zinc-300">
+                  <MousePointerClick className="h-3.5 w-3.5 text-zinc-500" />
+                  <span className="font-mono text-sm font-semibold tabular-nums leading-none">{moveCount}</span>
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-1">
-              <IconButton
-                label={soundOn ? "Desativar som" : "Ativar som"}
-                onClick={toggleSound}
-              >
+              <IconButton label={soundOn ? "Desativar som" : "Ativar som"} onClick={toggleSound}>
                 {soundOn ? <Volume2 className="h-4.5 w-4.5" /> : <VolumeX className="h-4.5 w-4.5" />}
               </IconButton>
               <IconButton label="Ajuda" onClick={() => setHelpOpen(true)}>
@@ -178,6 +247,48 @@ export default function GameShell() {
             <span className="glass rounded-full px-4 py-1.5 text-xs font-semibold text-zinc-300">
               {status === "scrambling" ? "A embaralhar…" : "A resolver…"}
             </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* botões flutuantes (recentrar / espiar) */}
+      <AnimatePresence>
+        {inGame && (
+          <motion.div
+            key="float"
+            className="absolute bottom-[6.6rem] right-3 z-20 flex flex-col items-center gap-2 sm:right-5"
+            initial={{ opacity: 0, x: 14 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 14 }}
+            transition={{ duration: 0.28, delay: 0.08 }}
+          >
+            {mode === "memory" && memoryPhase === "blind" && (playing || status === "idle") && (
+              <motion.button
+                onClick={() => {
+                  playClick();
+                  useGameStore.getState().peek();
+                }}
+                whileTap={{ scale: 0.92 }}
+                aria-label="Espiar cores (+5 segundos)"
+                title="Espiar cores (+5 s)"
+                className="glass flex h-12 w-12 flex-col items-center justify-center rounded-2xl text-sky-300 transition-all duration-200 hover:bg-white/15 active:scale-95"
+              >
+                <Eye className="h-5 w-5" />
+                <span className="mt-0.5 text-[9px] font-bold leading-none">+5s</span>
+              </motion.button>
+            )}
+            <motion.button
+              onClick={() => {
+                playClick();
+                useGameStore.getState().resetView();
+              }}
+              whileTap={{ scale: 0.92 }}
+              aria-label="Recentrar câmara e repor zoom"
+              title="Recentrar câmara (duplo clique no fundo)"
+              className="glass flex h-12 w-12 items-center justify-center rounded-2xl text-zinc-300 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95"
+            >
+              <LocateFixed className="h-5 w-5" />
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -234,6 +345,7 @@ export default function GameShell() {
       {/* ecrãs */}
       <AnimatePresence>{status === "menu" && <MenuOverlay key="menu" onHelp={() => setHelpOpen(true)} />}</AnimatePresence>
       <WinOverlay />
+      <FailOverlay />
 
       <HelpDialog open={helpOpen} onOpenChange={(v) => { setHelpOpen(v); if (!v) playClick(); }} />
       <SettingsDialog open={settingsOpen} onOpenChange={(v) => { setSettingsOpen(v); if (!v) playClick(); }} />

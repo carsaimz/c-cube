@@ -5,9 +5,9 @@ const config: CapacitorConfig = {
   appId: "com.carsaimz.cube",
   appName: "C-Cube",
   webDir: ".next-static",
-  backgroundColor: "#07080d",
+  backgroundColor: "#04050a",
   android: {
-    backgroundColor: "#07080d",
+    backgroundColor: "#04050a",
     allowMixedContent: false,
   },
   server: {

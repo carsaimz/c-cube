@@ -1,21 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1b1f2a"/>
-      <stop offset="1" stop-color="#0a0c12"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2238"/>
+      <stop offset="1" stop-color="#05070d"/>
     </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.48" r="0.5">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="128" height="128" rx="28" fill="url(#bg)"/>
-  <!-- cubo isométrico -->
+  <ellipse cx="64" cy="61" rx="52" ry="50" fill="url(#glow)"/>
   <g stroke-linejoin="round">
-    <!-- topo -->
-    <path d="M64 26 96 44 64 62 32 44Z" fill="#ffd21e"/>
-    <!-- esquerda -->
-    <path d="M32 44 64 62 64 102 32 84Z" fill="#d92b3a"/>
-    <!-- direita -->
-    <path d="M96 44 64 62 64 102 96 84Z" fill="#22b455"/>
-    <!-- arestas internas -->
-    <path d="M32 44 64 62 96 44M64 62 64 102" fill="none" stroke="#0a0c12" stroke-opacity="0.35" stroke-width="2.5"/>
-    <path d="M64 26 96 44 96 84 64 102 32 84 32 44Z" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2.5"/>
+    <path d="M64.00,64.64 L64.00,26.24 L97.26,7.04 L97.26,45.44 Z" fill="#0d101a"/><path d="M64.00,64.64 L64.00,103.04 L30.74,83.84 L30.74,45.44 Z" fill="#0d101a"/><path d="M64.00,64.64 L64.00,103.04 L97.26,83.84 L97.26,45.44 Z" fill="#0d101a"/>
+    <path d="M65.11,62.72 L65.11,52.48 L73.98,47.36 L73.98,57.60 Z" fill="#f5f6f8"/><path d="M76.19,56.32 L76.19,46.08 L85.06,40.96 L85.06,51.20 Z" fill="#f5f6f8"/><path d="M87.28,49.92 L87.28,39.68 L96.15,34.56 L96.15,44.80 Z" fill="#f5f6f8"/><path d="M65.11,49.92 L65.11,39.68 L73.98,34.56 L73.98,44.80 Z" fill="#f5f6f8"/><path d="M76.19,43.52 L76.19,33.28 L85.06,28.16 L85.06,38.40 Z" fill="#f5f6f8"/><path d="M87.28,37.12 L87.28,26.88 L96.15,21.76 L96.15,32.00 Z" fill="#f5f6f8"/><path d="M65.11,37.12 L65.11,26.88 L73.98,21.76 L73.98,32.00 Z" fill="#f5f6f8"/><path d="M76.19,30.72 L76.19,20.48 L85.06,15.36 L85.06,25.60 Z" fill="#f5f6f8"/><path d="M87.28,24.32 L87.28,14.08 L96.15,8.96 L96.15,19.20 Z" fill="#f5f6f8"/><path d="M62.89,65.28 L62.89,75.52 L54.02,70.40 L54.02,60.16 Z" fill="#22b455"/><path d="M51.81,58.88 L51.81,69.12 L42.94,64.00 L42.94,53.76 Z" fill="#22b455"/><path d="M40.72,52.48 L40.72,62.72 L31.85,57.60 L31.85,47.36 Z" fill="#22b455"/><path d="M62.89,78.08 L62.89,88.32 L54.02,83.20 L54.02,72.96 Z" fill="#22b455"/><path d="M51.81,71.68 L51.81,81.92 L42.94,76.80 L42.94,66.56 Z" fill="#22b455"/><path d="M40.72,65.28 L40.72,75.52 L31.85,70.40 L31.85,60.16 Z" fill="#22b455"/><path d="M62.89,90.88 L62.89,101.12 L54.02,96.00 L54.02,85.76 Z" fill="#22b455"/><path d="M51.81,84.48 L51.81,94.72 L42.94,89.60 L42.94,79.36 Z" fill="#22b455"/><path d="M40.72,78.08 L40.72,88.32 L31.85,83.20 L31.85,72.96 Z" fill="#22b455"/><path d="M64.00,64.64 L64.00,103.04 L30.74,83.84 L30.74,45.44 Z" fill="#000" opacity="0.08"/><path d="M65.11,65.28 L65.11,75.52 L73.98,70.40 L73.98,60.16 Z" fill="#e23b49"/><path d="M76.19,58.88 L76.19,69.12 L85.06,64.00 L85.06,53.76 Z" fill="#e23b49"/><path d="M87.28,52.48 L87.28,62.72 L96.15,57.60 L96.15,47.36 Z" fill="#e23b49"/><path d="M65.11,78.08 L65.11,88.32 L73.98,83.20 L73.98,72.96 Z" fill="#e23b49"/><path d="M76.19,71.68 L76.19,81.92 L85.06,76.80 L85.06,66.56 Z" fill="#e23b49"/><path d="M87.28,65.28 L87.28,75.52 L96.15,70.40 L96.15,60.16 Z" fill="#e23b49"/><path d="M65.11,90.88 L65.11,101.12 L73.98,96.00 L73.98,85.76 Z" fill="#e23b49"/><path d="M76.19,84.48 L76.19,94.72 L85.06,89.60 L85.06,79.36 Z" fill="#e23b49"/><path d="M87.28,78.08 L87.28,88.32 L96.15,83.20 L96.15,72.96 Z" fill="#e23b49"/><path d="M64.00,64.64 L64.00,103.04 L97.26,83.84 L97.26,45.44 Z" fill="#000" opacity="0.15"/>
+  </g>
+  <g fill="none" stroke-linecap="round">
+    <path d="M78.84 78.00 A 19.97 19.97 0 1 1 78.84 51.28"
+          stroke="#05070d" stroke-opacity="0.85" stroke-width="11.52"/>
+    <path d="M78.84 78.00 A 19.97 19.97 0 1 1 78.84 51.28"
+          stroke="#fbbf24" stroke-width="7.68"/>
   </g>
 </svg>

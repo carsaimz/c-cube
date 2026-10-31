@@ -14,21 +14,31 @@
 
 O C-Cube é um jogo de cubo mágico (2×2, 3×3 e 4×4) com gestos diretos: **arrasta sobre a peça
 na direção em que queres rodar a camada**. Fora do cubo, arrastar orbita a câmara. Tudo com
-animações suaves, efeitos sonoros discretos, vibração (Android), temas visuais, cronómetro e
-recordes guardados no dispositivo.
+animações suaves, sons realistas de plástico, vibração (Android), temas visuais, 5 modos de
+jogo, 4 dificuldades e recordes guardados no dispositivo.
 
 ## Funcionalidades
 
 - **Cubo 3D real** (Three.js) com peças arredondadas, adesivos texturizados e sombras suaves
 - **Gestos naturais** — roda camadas arrastando sobre a peça; orbita e faz zoom livremente
 - **Animações fluidas** — easing em todas as rotações, flutuação no menu, pulso de vitória
-- **Tamanhos** 2×2, 3×3 e 4×4 (com movimentos de camadas largas nos grandes)
+- **Recentrar câmara** — botão ⌖ (ou duplo clique fora do cubo) repõe o centro e o zoom padrão;
+  em jogo o cubo fica centrado na zona livre entre o HUD e a barra de controlos
+- **5 modos de jogo**:
+  - **Clássico** — resolve ao teu ritmo, cronómetro a contar para cima
+  - **Sprint** — contra-relógio; os últimos 5 segundos avisam com tiques sonoros
+  - **Eficiência** — orçamento limitado de movimentos (o recorde é por movimentos)
+  - **Maratona** — sequência 2×2 → 3×3 → 4×4 com tempo acumulado
+  - **Memória** — memoriza o embaralhamento; os adesivos ficam cinzentos (espreitar custa +5 s)
+- **4 dificuldades** (Fácil, Normal, Difícil, Extremo) — mudam o tamanho do embaralhamento e
+  os limites de tempo/movimentos/memorização; cada combinação tem recorde próprio
 - **Embaralhar** com notação SiGN visível e **Resolver** passo a passo (reverte o histórico)
 - **Desfazer / Refazer / Reiniciar** ilimitados
 - **Cronómetro e contador de movimentos** — o tempo começa no teu primeiro movimento
-- **Recordes** por tamanho, guardados no dispositivo (localStorage)
 - **4 temas**: Clássico, Neon (adesivos brilhantes), Pastel e Carbono
-- **Som sintetizado** (WebAudio, sem ficheiros) e **vibração** — ambos desativáveis
+- **Som realista sintetizado** (WebAudio, sem ficheiros): snap de plástico por camadas com
+  variação de tom, pan estéreo por eixo e reverb — e **vibração**, ambos desativáveis
+- **Ícone e splash nativos** (Android adaptativo + legado, Electron Win/mac/Linux)
 - **Teclado no PC**: `U D L R F B` (com `Shift` para o movimento inverso)
 - Instalável como **app Android** (Capacitor) e **app de desktop** (Electron)
 
@@ -39,6 +49,8 @@ recordes guardados no dispositivo.
 | Rodar camada | Arrastar sobre o cubo | `U` `D` `L` `R` `F` `B` (+`Shift` = inverso) |
 | Orbitar câmara | Arrastar fora do cubo | — |
 | Zoom | Pinça / roda do rato | — |
+| **Recentrar câmara / zoom** | Botão ⌖ (canto inferior direito) ou duplo clique fora do cubo | — |
+| Espiar cores (Memória) | Botão 👁 (+5 s de penalização) | — |
 | Embaralhar / Resolver / Desfazer / Refazer / Reiniciar | Barra inferior | — |
 
 ## Estrutura
