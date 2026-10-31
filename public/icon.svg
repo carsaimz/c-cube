@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b1f2a"/>
+      <stop offset="1" stop-color="#0a0c12"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <!-- cubo isométrico -->
+  <g stroke-linejoin="round">
+    <!-- topo -->
+    <path d="M64 26 96 44 64 62 32 44Z" fill="#ffd21e"/>
+    <!-- esquerda -->
+    <path d="M32 44 64 62 64 102 32 84Z" fill="#d92b3a"/>
+    <!-- direita -->
+    <path d="M96 44 64 62 64 102 96 84Z" fill="#22b455"/>
+    <!-- arestas internas -->
+    <path d="M32 44 64 62 96 44M64 62 64 102" fill="none" stroke="#0a0c12" stroke-opacity="0.35" stroke-width="2.5"/>
+    <path d="M64 26 96 44 96 84 64 102 32 84 32 44Z" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2.5"/>
+  </g>
+</svg>
