@@ -1,2 +1,50 @@
-skills/
+# dependências
 node_modules/
+.bun/
+
+# builds
+.next/
+.next-static/
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# android (capacitor)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/capacitor-cordova-android-plugins/
+
+# electron
+release/
+
+# ambiente / logs
+.env*
+!.env.example
+dev.log
+server.log
+*.log
+
+# base de dados do scaffold (não usada pelo jogo)
+prisma/
+db/
+src/lib/db.ts
+
+# pastas locais do ambiente de trabalho
+.zscripts/
+agent-ctx/
+examples/
+tests/
+skills/
+scripts/
+upload/
+download/
+mini-services/
+Caddyfile
+
+# sistema
+.DS_Store
+Thumbs.db
