@@ -17,6 +17,11 @@ android/app/build/
 android/local.properties
 android/.idea/
 android/capacitor-cordova-android-plugins/
+# chaves de assinatura (nunca commitar)
+android/keystore/
+android/keystore.properties
+*.jks
+*.keystore
 
 # electron
 release/

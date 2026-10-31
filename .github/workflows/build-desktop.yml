@@ -1,0 +1,56 @@
+name: Build Desktop (Electron)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows (NSIS x64)
+            pattern: release/C-Cube-Setup-*.exe
+          - os: ubuntu-latest
+            label: Linux (AppImage x64)
+            pattern: release/C-Cube-*.AppImage
+          - os: macos-latest
+            label: macOS (DMG x64 + arm64)
+            pattern: release/C-Cube-*.dmg
+    env:
+      # Sem certificados Apple no CI → saltar codesign automático (só afeta macOS)
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependências
+        run: bun install --frozen-lockfile
+
+      - name: Build estático do Next (assets web para o Electron)
+        run: bun run build:static
+
+      - name: Empacotar com electron-builder
+        run: bunx electron-builder --publish never
+
+      - name: Carregar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: C-Cube-desktop-${{ matrix.os }}
+          path: ${{ matrix.pattern }}
+          if-no-files-found: error
+          retention-days: 14

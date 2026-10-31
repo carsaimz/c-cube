@@ -3,9 +3,10 @@ productName: C-Cube
 copyright: Copyright © 2026 carsaimz
 directories:
   output: release
+# NOTA: a exportação estática do Next (CUBE_STATIC_EXPORT=1) vai para .next-static
 files:
   - electron/**/*
-  - out/**/*
+  - .next-static/**/*
   - package.json
 asar: true
 win:
@@ -29,5 +30,6 @@ mac:
     - target: dmg
       arch:
         - x64
+        - arm64
   category: public.app-category.games
   artifactName: C-Cube-${version}.${ext}

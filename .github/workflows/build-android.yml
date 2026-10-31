@@ -1,0 +1,147 @@
+name: Build Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Gerar também APK/AAB de release (assinado se os secrets existirem)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  debug:
+    name: APK (debug, instalável)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # histórico completo → versionCode = nº de commits (monotónico)
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Instalar dependências
+        run: bun install --frozen-lockfile
+
+      - name: Build estático do Next (assets web para o Capacitor)
+        run: bun run build:static
+
+      - name: Sincronizar Capacitor (copiar assets + plugins)
+        run: bunx cap sync android
+
+      - name: Determinar versão
+        id: ver
+        run: |
+          echo "code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK debug
+        run: >
+          cd android && ./gradlew assembleDebug
+          -PversionCode=${{ steps.ver.outputs.code }}
+          -PversionName=${{ steps.ver.outputs.name }}
+          --stacktrace
+
+      - name: Organizar artefactos
+        run: |
+          mkdir -p output
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             output/C-Cube-${{ steps.ver.outputs.name }}-debug.apk
+
+      - name: Carregar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: C-Cube-android-debug
+          path: output/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Release (APK + AAB)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Instalar dependências
+        run: bun install --frozen-lockfile
+
+      - name: Build estático do Next (assets web para o Capacitor)
+        run: bun run build:static
+
+      - name: Sincronizar Capacitor (copiar assets + plugins)
+        run: bunx cap sync android
+
+      - name: Configurar assinatura (secrets opcionais)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            mkdir -p android/keystore
+            echo "$KEYSTORE_B64" | base64 -d > android/keystore/release.jks
+            printf 'storeFile=keystore/release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+              "$STORE_PASS" "$KEY_ALIAS" "$KEY_PASS" > android/keystore.properties
+            echo "✅ Assinatura configurada a partir dos secrets."
+          else
+            echo "⚠️ Sem secrets de assinatura — o release sairá NÃO assinado."
+          fi
+
+      - name: Determinar versão
+        id: ver
+        run: |
+          echo "code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK + AAB (release)
+        run: >
+          cd android && ./gradlew assembleRelease bundleRelease
+          -PversionCode=${{ steps.ver.outputs.code }}
+          -PversionName=${{ steps.ver.outputs.name }}
+          --stacktrace
+
+      - name: Organizar artefactos
+        run: |
+          mkdir -p output
+          V="${{ steps.ver.outputs.name }}"
+          cp android/app/build/outputs/apk/release/*.apk   "output/C-Cube-${V}.apk"
+          cp android/app/build/outputs/bundle/release/*.aab "output/C-Cube-${V}.aab"
+
+      - name: Carregar artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: C-Cube-android-release
+          path: output/*
+          if-no-files-found: error
+          retention-days: 30

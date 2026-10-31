@@ -104,6 +104,46 @@ npm run electron:build   # instaladores (NSIS/AppImage/DMG) em release/
 | `npm run electron:dev` | Electron em desenvolvimento |
 | `npm run electron:build` | Empacotamento para Windows/Linux/macOS |
 
+## Builds automáticos (GitHub Actions)
+
+| Workflow | O que faz | Quando corre |
+| --- | --- | --- |
+| **CI** (`ci.yml`) | Lint, verificação de tipos e build estático web | push/PR para `main` |
+| **Build Android** (`build-android.yml`) | APK debug instalável (+ APK/AAB release se `release=true` no acionamento manual) | push/PR para `main` e manual |
+| **Build Desktop** (`build-desktop.yml`) | Instaladores Electron: Windows (NSIS), Linux (AppImage) e macOS (DMG x64/arm64) | push/PR para `main` e manual |
+| **Release** (`release.yml`) | APK + AAB + todos os instaladores desktop publicados numa GitHub Release | push de tag `v*` (ex.: `git tag v1.0.0 && git push origin v1.0.0`) |
+
+Os artefactos ficam disponíveis na página **Actions** do repositório (em *Artifacts*).
+
+### Assinatura do Android (opcional)
+
+Os builds de release são assinados automaticamente se estes **secrets** existirem no repositório (*Settings → Secrets and variables → Actions*):
+
+| Secret | Descrição |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Keystore `.jks` codificado em Base64 (`base64 -w0 release.jks`) |
+| `ANDROID_KEYSTORE_PASSWORD` | Palavra-passe do keystore |
+| `ANDROID_KEY_ALIAS` | Alias da chave |
+| `ANDROID_KEY_PASSWORD` | Palavra-passe da chave |
+
+Sem secrets, os artefactos release saem **não assinados** (e o APK debug é sempre instalável). Localmente também podes assinar criando `android/keystore.properties` (ignorado pelo git):
+
+```properties
+storeFile=keystore/release.jks
+storePassword=***
+keyAlias=***
+keyPassword=***
+```
+
+### Publicar uma versão
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+O workflow **Release** compila tudo (Android + Windows + Linux + macOS) e publica os ficheiros na GitHub Release correspondente, com notas geradas automaticamente.
+
 ## Licença
 
 [MIT](LICENSE) © carsaimz
