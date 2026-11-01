@@ -53,3 +53,9 @@ Caddyfile
 # sistema
 .DS_Store
 Thumbs.db
+
+# Next.js static export (build output)
+.next-static/
+
+# tool results
+/tool-results/

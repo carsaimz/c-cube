@@ -11,6 +11,7 @@
  *  - marathon   → sequência 2×2 → 3×3 → 4×4, tempo acumulado
  *  - memory     → memorizar o scramble; adesivos ficam cinzentos (espreitar custa +5 s)
  */
+import { useMemo } from "react";
 import { create } from "zustand";
 import {
   type Difficulty,
@@ -41,6 +42,21 @@ import {
   setMuted,
 } from "@/lib/sound";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
+import {
+  type Locale,
+  detectLocale,
+  tFor,
+  type TFn,
+} from "@/lib/i18n";
+import {
+  APP_VERSION,
+  CHECK_INTERVAL_MS,
+  compareVersions,
+  fetchLatestRelease,
+  getLastCheckTs,
+  setLastCheckTs,
+  type ReleaseInfo,
+} from "@/lib/update";
 
 export type GameMode = "classic" | "sprint" | "efficiency" | "marathon" | "memory";
 export type GameStatus = "menu" | "idle" | "scrambling" | "playing" | "solving" | "won" | "failed";
@@ -83,13 +99,21 @@ interface Settings {
   hapticsOn: boolean;
   mode: GameMode;
   difficulty: Difficulty;
+  locale: Locale;
 }
 
 const SETTINGS_KEY = "ccube:v1:settings";
 const BESTS_KEY = "ccube:v1:bests";
 
 function loadSettings(): Settings {
-  const fallback: Settings = { themeId: "classic", soundOn: true, hapticsOn: true, mode: "classic", difficulty: "normal" };
+  const fallback: Settings = {
+    themeId: "classic",
+    soundOn: true,
+    hapticsOn: true,
+    mode: "classic",
+    difficulty: "normal",
+    locale: detectLocale(),
+  };
   if (typeof window === "undefined") return fallback;
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
@@ -101,6 +125,7 @@ function loadSettings(): Settings {
         hapticsOn: p.hapticsOn ?? true,
         mode: p.mode ?? "classic",
         difficulty: p.difficulty ?? "normal",
+        locale: p.locale ?? detectLocale(),
       };
     }
   } catch {
@@ -157,6 +182,8 @@ function buzz(): void {
   });
 }
 
+export type UpdateState = "idle" | "checking" | "available" | "none" | "error";
+
 interface GameState {
   status: GameStatus;
   size: number;
@@ -165,6 +192,7 @@ interface GameState {
   themeId: string;
   soundOn: boolean;
   hapticsOn: boolean;
+  locale: Locale;
   moveCount: number;
   startedAt: number | null;
   elapsedMs: number;
@@ -186,6 +214,11 @@ interface GameState {
   studyTotalMs: number;
   peekUntil: number | null;
   penaltyMs: number;
+
+  // atualizações
+  updateState: UpdateState;
+  updateInfo: ReleaseInfo | null;
+  updateDialogOpen: boolean;
 
   setView: (v: CubeView | null) => void;
   startGame: () => void;
@@ -211,6 +244,11 @@ interface GameState {
   continueMarathon: () => void;
   peek: () => void;
   resetView: () => void;
+  setLocale: (l: Locale) => void;
+  checkUpdate: (manual: boolean) => Promise<void>;
+  backgroundUpdateCheck: () => void;
+  dismissUpdateDialog: () => void;
+  openUpdateDialog: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => {
@@ -226,7 +264,14 @@ export const useGameStore = create<GameState>((set, get) => {
 
   const persist = () => {
     const s = get();
-    saveSettings({ themeId: s.themeId, soundOn: s.soundOn, hapticsOn: s.hapticsOn, mode: s.mode, difficulty: s.difficulty });
+    saveSettings({
+      themeId: s.themeId,
+      soundOn: s.soundOn,
+      hapticsOn: s.hapticsOn,
+      mode: s.mode,
+      difficulty: s.difficulty,
+      locale: s.locale,
+    });
   };
 
   /** Limpa o estado de modos temporários (memória/cego). */
@@ -249,6 +294,7 @@ export const useGameStore = create<GameState>((set, get) => {
     themeId: initialSettings.themeId,
     soundOn: initialSettings.soundOn,
     hapticsOn: initialSettings.hapticsOn,
+    locale: initialSettings.locale,
     moveCount: 0,
     startedAt: null,
     elapsedMs: 0,
@@ -269,6 +315,10 @@ export const useGameStore = create<GameState>((set, get) => {
     studyTotalMs: 0,
     peekUntil: null,
     penaltyMs: 0,
+
+    updateState: "idle",
+    updateInfo: null,
+    updateDialogOpen: false,
 
     setView: (v) => set({ view: v }),
 
@@ -374,6 +424,40 @@ export const useGameStore = create<GameState>((set, get) => {
       set({ hapticsOn });
       persist();
     },
+
+    setLocale: (l) => {
+      set({ locale: l });
+      persist();
+    },
+
+    checkUpdate: async (manual) => {
+      if (get().updateState === "checking") return;
+      set({ updateState: "checking" });
+      try {
+        const rel = await fetchLatestRelease();
+        setLastCheckTs(Date.now());
+        if (rel && compareVersions(rel.version, APP_VERSION) > 0) {
+          set({
+            updateState: "available",
+            updateInfo: rel,
+            updateDialogOpen: true,
+          });
+        } else {
+          set({ updateState: "none", updateInfo: rel, updateDialogOpen: false });
+        }
+      } catch {
+        set({ updateState: "error" });
+        if (!manual) set({ updateDialogOpen: false });
+      }
+    },
+
+    backgroundUpdateCheck: () => {
+      if (Date.now() - getLastCheckTs() < CHECK_INTERVAL_MS) return;
+      void get().checkUpdate(false);
+    },
+
+    dismissUpdateDialog: () => set({ updateDialogOpen: false }),
+    openUpdateDialog: () => set({ updateDialogOpen: true }),
 
     scramble: (opts) => {
       const { status, size, mode, difficulty, view } = get();
@@ -665,6 +749,12 @@ export const useGameStore = create<GameState>((set, get) => {
     },
   };
 });
+
+/** Hook de tradução: devolve t() fixado ao idioma atual da store. */
+export function useT(): TFn {
+  const locale = useGameStore((s) => s.locale);
+  return useMemo(() => tFor(locale), [locale]);
+}
 
 /** Callbacks ligados à vista 3D (chamados a cada movimento animado). */
 export const viewCallbacks = {

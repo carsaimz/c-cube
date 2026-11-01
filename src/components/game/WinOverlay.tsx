@@ -3,13 +3,14 @@ import { useEffect } from "react";
 import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Home, PartyPopper, Play, Trophy } from "lucide-react";
-import { DIFFICULTIES, MARATHON_STAGES, formatTime } from "@/lib/cube/engine";
+import { MARATHON_STAGES, formatTime } from "@/lib/cube/engine";
 import { themeById } from "@/lib/cube/themes";
 import { playClick } from "@/lib/sound";
-import { MODES, recordKey, useGameStore } from "@/store/game";
+import { recordKey, useGameStore, useT } from "@/store/game";
 
 /** Ecrã de vitória — também usado como interstício de etapa da Maratona. */
 export function WinOverlay() {
+  const t = useT();
   const status = useGameStore((s) => s.status);
   const lastWin = useGameStore((s) => s.lastWin);
   const size = useGameStore((s) => s.size);
@@ -53,8 +54,8 @@ export function WinOverlay() {
     }
   }, [visible, isStage, theme]);
 
-  const modeName = MODES.find((m) => m.id === lastWin?.mode)?.name ?? "Clássico";
-  const diffName = DIFFICULTIES.find((d) => d.id === difficulty)?.name ?? "Normal";
+  const modeName = t(`mode.${lastWin?.mode ?? "classic"}.name`);
+  const diffName = t(`diff.${difficulty}`);
   const bestValue = best
     ? lastWin?.mode === "efficiency"
       ? `${best.moves} mov.`
@@ -76,7 +77,7 @@ export function WinOverlay() {
           transition={{ duration: 0.25 }}
         >
           <motion.div
-            className="glass w-[min(92vw,380px)] rounded-3xl p-6 text-center shadow-2xl"
+            className="panel w-[min(92vw,380px)] rounded-3xl p-6 text-center shadow-2xl"
             initial={{ y: 28, scale: 0.94 }}
             animate={{ y: 0, scale: 1 }}
             exit={{ y: 18, scale: 0.96, opacity: 0 }}
@@ -101,22 +102,21 @@ export function WinOverlay() {
 
             <h2 className="mt-4 text-3xl font-bold tracking-tight text-white">
               {isStage
-                ? `Etapa ${lastWin.stageDone}/${lastWin.stagesTotal}!`
+                ? t("win.stage", { a: lastWin.stageDone ?? 1, b: lastWin.stagesTotal ?? MARATHON_STAGES.length })
                 : lastWin.final
-                  ? "Maratona concluída!"
-                  : "Resolvido!"}
+                  ? t("win.final")
+                  : t("win.solved")}
             </h2>
 
             {isStage && nextStageSize && (
               <p className="mt-1.5 text-sm text-zinc-400">
-                A seguir: <span className="font-semibold text-zinc-200">{nextStageSize}×{nextStageSize}</span> — o
-                tempo continua a contar.
+                {t("win.next", { n: nextStageSize })}
               </p>
             )}
 
             {!isStage && (
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
-                <span>{lastWin.final ? "Maratona" : modeName}</span>
+                <span>{lastWin.final ? t("mode.marathon.name") : modeName}</span>
                 <span className="h-1 w-1 rounded-full bg-zinc-600" />
                 <span>{diffName}</span>
               </div>
@@ -129,20 +129,17 @@ export function WinOverlay() {
                 transition={{ repeat: Infinity, duration: 1.6 }}
               >
                 <Trophy className="h-3.5 w-3.5" />
-                Novo recorde
+                {t("win.record")}
               </motion.div>
             )}
 
             <div className="mt-5 grid grid-cols-3 gap-2">
               <Stat
-                label={lastWin.mode === "efficiency" ? "Orçamento" : "Tempo"}
+                label={lastWin.mode === "efficiency" ? t("stat.budget") : t("stat.time")}
                 value={lastWin.mode === "efficiency" ? `${lastWin.moves} mov.` : formatTime(lastWin.timeMs)}
               />
-              <Stat
-                label="Movimentos"
-                value={lastWin.mode === "efficiency" ? String(lastWin.moves) : String(lastWin.moves)}
-              />
-              <Stat label="Melhor" value={bestValue} />
+              <Stat label={t("stat.moves")} value={String(lastWin.moves)} />
+              <Stat label={t("stat.best")} value={bestValue} />
             </div>
 
             {isStage ? (
@@ -151,7 +148,7 @@ export function WinOverlay() {
                 whileTap={{ scale: 0.97 }}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 py-3.5 text-base font-bold text-zinc-950 shadow-lg shadow-orange-500/30"
               >
-                Continuar
+                {t("action.continue")}
                 <ArrowRight className="h-5 w-5" />
               </motion.button>
             ) : (
@@ -161,7 +158,7 @@ export function WinOverlay() {
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 py-3.5 text-base font-bold text-zinc-950 shadow-lg shadow-orange-500/30"
               >
                 <Play className="h-5 w-5 fill-current" />
-                Jogar de novo
+                {t("action.playAgain")}
               </motion.button>
             )}
             <button
@@ -172,7 +169,7 @@ export function WinOverlay() {
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 py-3 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/10"
             >
               <Home className="h-4 w-4" />
-              Menu
+              {t("action.menu")}
             </button>
           </motion.div>
         </motion.div>

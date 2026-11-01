@@ -3,10 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Home, Hourglass, MousePointerClick, RotateCcw } from "lucide-react";
 import { formatTime } from "@/lib/cube/engine";
 import { playClick } from "@/lib/sound";
-import { useGameStore } from "@/store/game";
+import { useGameStore, useT } from "@/store/game";
 
 /** Ecrã de falha — tempo esgotado (Sprint) ou orçamento excedido (Eficiência). */
 export function FailOverlay() {
+  const t = useT();
   const status = useGameStore((s) => s.status);
   const failReason = useGameStore((s) => s.failReason);
   const elapsedMs = useGameStore((s) => s.elapsedMs);
@@ -27,7 +28,7 @@ export function FailOverlay() {
           transition={{ duration: 0.25 }}
         >
           <motion.div
-            className="glass w-[min(92vw,380px)] rounded-3xl p-6 text-center shadow-2xl"
+            className="panel w-[min(92vw,380px)] rounded-3xl p-6 text-center shadow-2xl"
             initial={{ y: 28, scale: 0.94 }}
             animate={{ y: 0, scale: 1 }}
             exit={{ y: 18, scale: 0.96, opacity: 0 }}
@@ -47,17 +48,15 @@ export function FailOverlay() {
             </motion.div>
 
             <h2 className="mt-4 text-3xl font-bold tracking-tight text-white">
-              {failReason === "time" ? "Tempo esgotado!" : "Sem movimentos!"}
+              {failReason === "time" ? t("fail.time.title") : t("fail.moves.title")}
             </h2>
             <p className="mt-1.5 text-sm text-zinc-400">
-              {failReason === "time"
-                ? "O cronómetro chegou a zero antes de terminares."
-                : "Usaste todo o orçamento de movimentos."}
+              {failReason === "time" ? t("fail.time.desc") : t("fail.moves.desc")}
             </p>
 
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <Stat label="Tempo" value={formatTime(elapsedMs)} />
-              <Stat label="Movimentos" value={String(moveCount)} />
+              <Stat label={t("stat.time")} value={formatTime(elapsedMs)} />
+              <Stat label={t("stat.moves")} value={String(moveCount)} />
             </div>
 
             <motion.button
@@ -66,7 +65,7 @@ export function FailOverlay() {
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 py-3.5 text-base font-bold text-zinc-950 shadow-lg shadow-orange-500/30"
             >
               <RotateCcw className="h-5 w-5" />
-              Tentar de novo
+              {t("action.retry")}
             </motion.button>
             <button
               onClick={() => {
@@ -76,7 +75,7 @@ export function FailOverlay() {
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 py-3 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/10"
             >
               <Home className="h-4 w-4" />
-              Menu
+              {t("action.menu")}
             </button>
           </motion.div>
         </motion.div>

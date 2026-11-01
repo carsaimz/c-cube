@@ -1,9 +1,9 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Box,
+  ArrowLeft,
   Brain,
   CircleHelp,
   Eye,
@@ -28,12 +28,13 @@ import {
 } from "@/lib/cube/engine";
 import { themeById } from "@/lib/cube/themes";
 import { playClick, unlockAudio } from "@/lib/sound";
-import { useGameStore } from "@/store/game";
+import { useGameStore, useT } from "@/store/game";
 import { MenuOverlay } from "./MenuOverlay";
 import { WinOverlay } from "./WinOverlay";
 import { FailOverlay } from "./FailOverlay";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
+import { UpdateDialog } from "./UpdateDialog";
 
 const CubeCanvas = dynamic(() => import("./CubeCanvas"), { ssr: false });
 
@@ -41,6 +42,14 @@ const CubeCanvas = dynamic(() => import("./CubeCanvas"), { ssr: false });
 export default function GameShell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const helpOpenRef = useRef(helpOpen);
+  const settingsOpenRef = useRef(settingsOpen);
+  helpOpenRef.current = helpOpen;
+  settingsOpenRef.current = settingsOpen;
+
+  const t = useT();
+  const locale = useGameStore((s) => s.locale);
+  const updateState = useGameStore((s) => s.updateState);
 
   const status = useGameStore((s) => s.status);
   const themeId = useGameStore((s) => s.themeId);
@@ -81,11 +90,26 @@ export default function GameShell() {
     return () => window.removeEventListener("pointerdown", un);
   }, []);
 
-  // teclado (PC)
+  // título e idioma do documento acompanham o locale escolhido
+  useEffect(() => {
+    document.title = t("app.title");
+    document.documentElement.lang = locale;
+  }, [t, locale]);
+
+  // teclado (PC): letras rodam faces; Esc volta ao menu
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const st = useGameStore.getState();
+      if (e.key === "Escape") {
+        if (helpOpenRef.current || settingsOpenRef.current) return; // o diálogo trata do Esc
+        if (st.updateDialogOpen) return;
+        if (st.status !== "menu") {
+          e.preventDefault();
+          st.goMenu();
+        }
+        return;
+      }
       if (st.status !== "idle" && st.status !== "playing") return;
       const k = e.key.toLowerCase();
       if (k.length === 1 && "udlrfb".includes(k)) {
@@ -97,10 +121,59 @@ export default function GameShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Android: botão físico "voltar" → fecha diálogo → volta ao menu → sai da app
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (!Capacitor.isNativePlatform() || cancelled) return;
+        const { App } = await import("@capacitor/app");
+        const sub = await App.addListener("backButton", () => {
+          const st = useGameStore.getState();
+          if (helpOpenRef.current) {
+            setHelpOpen(false);
+            return;
+          }
+          if (settingsOpenRef.current) {
+            setSettingsOpen(false);
+            return;
+          }
+          if (st.updateDialogOpen) {
+            st.dismissUpdateDialog();
+            return;
+          }
+          if (st.status !== "menu") {
+            st.goMenu();
+            return;
+          }
+          void App.exitApp();
+        });
+        cleanup = () => {
+          void sub.remove();
+        };
+      } catch {
+        /* web/electron: sem botão físico */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
+
+  // verificação de atualizações em segundo plano (1×/24 h, silenciosa)
+  useEffect(() => {
+    const id = setTimeout(() => useGameStore.getState().backgroundUpdateCheck(), 4000);
+    return () => clearTimeout(id);
+  }, []);
+
   const theme = themeById(themeId);
   const inGame = status !== "menu";
   const busy = status === "scrambling" || status === "solving";
   const playing = status === "playing";
+  const updateBadge = updateState === "available";
 
   // ------- indicadores por modo
   const sprintLimit = sprintTimeLimit(size, difficulty);
@@ -139,13 +212,20 @@ export default function GameShell() {
                 playClick();
                 useGameStore.getState().goMenu();
               }}
-              className="flex items-center gap-2 rounded-2xl px-1 py-1 transition-opacity hover:opacity-80"
-              aria-label="Voltar ao menu"
+              className="glass flex items-center gap-1.5 rounded-2xl p-1 pr-2 transition-opacity hover:opacity-85"
+              aria-label={t("aria.back")}
+              title={t("aria.back")}
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 shadow-md shadow-orange-500/20">
-                <Box className="h-4.5 w-4.5 text-white" strokeWidth={2.4} />
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-white/10 text-zinc-200">
+                <ArrowLeft className="h-4 w-4" strokeWidth={2.4} />
               </span>
-              <span className="text-sm font-bold tracking-tight hidden sm:block">C-Cube</span>
+              <img
+                src="/logo.svg"
+                alt=""
+                draggable={false}
+                className="h-8 w-8 rounded-lg shadow-sm shadow-orange-500/30"
+              />
+              <span className="hidden text-sm font-bold tracking-tight sm:block">C-Cube</span>
             </button>
 
             <div className="glass flex items-center gap-2.5 rounded-2xl px-3 py-2 sm:px-4">
@@ -153,7 +233,7 @@ export default function GameShell() {
                 <span className="flex items-center gap-1.5">
                   <Brain className="h-3.5 w-3.5 text-sky-400" />
                   <span className="font-mono text-sm sm:text-base font-bold tabular-nums leading-none text-sky-300">
-                    Memoriza {Math.ceil(studyLeft / 1000)}s
+                    {t("hud.memorize", { s: Math.ceil(studyLeft / 1000) })}
                   </span>
                 </span>
               ) : mode === "sprint" ? (
@@ -203,13 +283,13 @@ export default function GameShell() {
             </div>
 
             <div className="flex items-center gap-1">
-              <IconButton label={soundOn ? "Desativar som" : "Ativar som"} onClick={toggleSound}>
+              <IconButton label={soundOn ? t("aria.soundOff") : t("aria.soundOn")} onClick={toggleSound}>
                 {soundOn ? <Volume2 className="h-4.5 w-4.5" /> : <VolumeX className="h-4.5 w-4.5" />}
               </IconButton>
-              <IconButton label="Ajuda" onClick={() => setHelpOpen(true)}>
+              <IconButton label={t("aria.help")} onClick={() => setHelpOpen(true)}>
                 <CircleHelp className="h-4.5 w-4.5" />
               </IconButton>
-              <IconButton label="Definições" onClick={() => setSettingsOpen(true)}>
+              <IconButton label={t("aria.settings")} onClick={() => setSettingsOpen(true)} badge={updateBadge}>
                 <Settings className="h-4.5 w-4.5" />
               </IconButton>
             </div>
@@ -227,7 +307,7 @@ export default function GameShell() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <span className="max-w-full truncate rounded-full bg-white/[0.04] px-3 py-1 font-mono text-[11px] text-zinc-500">
+            <span className="max-w-full truncate rounded-full bg-black/30 px-3 py-1 font-mono text-[11px] text-zinc-400 backdrop-blur-sm">
               {scrambleStr}
             </span>
           </motion.div>
@@ -244,8 +324,8 @@ export default function GameShell() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
           >
-            <span className="glass rounded-full px-4 py-1.5 text-xs font-semibold text-zinc-300">
-              {status === "scrambling" ? "A embaralhar…" : "A resolver…"}
+            <span className="glass rounded-full px-4 py-1.5 text-xs font-semibold text-zinc-200">
+              {status === "scrambling" ? t("busy.scrambling") : t("busy.solving")}
             </span>
           </motion.div>
         )}
@@ -269,8 +349,8 @@ export default function GameShell() {
                   useGameStore.getState().peek();
                 }}
                 whileTap={{ scale: 0.92 }}
-                aria-label="Espiar cores (+5 segundos)"
-                title="Espiar cores (+5 s)"
+                aria-label={t("float.peek")}
+                title={t("float.peekShort")}
                 className="glass flex h-12 w-12 flex-col items-center justify-center rounded-2xl text-sky-300 transition-all duration-200 hover:bg-white/15 active:scale-95"
               >
                 <Eye className="h-5 w-5" />
@@ -283,8 +363,8 @@ export default function GameShell() {
                 useGameStore.getState().resetView();
               }}
               whileTap={{ scale: 0.92 }}
-              aria-label="Recentrar câmara e repor zoom"
-              title="Recentrar câmara (duplo clique no fundo)"
+              aria-label={t("float.recenter")}
+              title={t("float.recenterTitle")}
               className="glass flex h-12 w-12 items-center justify-center rounded-2xl text-zinc-300 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95"
             >
               <LocateFixed className="h-5 w-5" />
@@ -306,37 +386,11 @@ export default function GameShell() {
             transition={{ duration: 0.28, delay: 0.05 }}
           >
             <div className="glass flex items-center gap-1 rounded-3xl p-1.5 shadow-2xl">
-              <DockButton
-                primary
-                icon={<Shuffle className="h-5 w-5" />}
-                label="Embaralhar"
-                onClick={scramble}
-                disabled={busy}
-              />
-              <DockButton
-                icon={<Sparkles className="h-5 w-5" />}
-                label="Resolver"
-                onClick={solve}
-                disabled={busy || historyLen === 0}
-              />
-              <DockButton
-                icon={<Undo2 className="h-5 w-5" />}
-                label="Desfazer"
-                onClick={undo}
-                disabled={busy || historyLen === 0}
-              />
-              <DockButton
-                icon={<Redo2 className="h-5 w-5" />}
-                label="Refazer"
-                onClick={redo}
-                disabled={busy || redoLen === 0}
-              />
-              <DockButton
-                icon={<RotateCcw className="h-5 w-5" />}
-                label="Reiniciar"
-                onClick={reset}
-                disabled={busy}
-              />
+              <DockButton primary icon={<Shuffle className="h-5 w-5" />} label={t("dock.scramble")} onClick={scramble} disabled={busy} />
+              <DockButton icon={<Sparkles className="h-5 w-5" />} label={t("dock.solve")} onClick={solve} disabled={busy || historyLen === 0} />
+              <DockButton icon={<Undo2 className="h-5 w-5" />} label={t("dock.undo")} onClick={undo} disabled={busy || historyLen === 0} />
+              <DockButton icon={<Redo2 className="h-5 w-5" />} label={t("dock.redo")} onClick={redo} disabled={busy || redoLen === 0} />
+              <DockButton icon={<RotateCcw className="h-5 w-5" />} label={t("dock.reset")} onClick={reset} disabled={busy} />
             </div>
           </motion.nav>
         )}
@@ -349,13 +403,14 @@ export default function GameShell() {
 
       <HelpDialog open={helpOpen} onOpenChange={(v) => { setHelpOpen(v); if (!v) playClick(); }} />
       <SettingsDialog open={settingsOpen} onOpenChange={(v) => { setSettingsOpen(v); if (!v) playClick(); }} />
+      <UpdateDialog />
 
       {/* ecrã inicial discreto para começar (autoplay/áudio) */}
       {!inGame && (
         <button
           onClick={startGame}
           className="sr-only"
-          aria-label="Começar a jogar"
+          aria-label={t("action.start")}
         />
       )}
     </main>
@@ -366,10 +421,12 @@ function IconButton({
   label,
   onClick,
   children,
+  badge,
 }: {
   label: string;
   onClick: () => void;
   children: React.ReactNode;
+  badge?: boolean;
 }) {
   return (
     <button
@@ -379,9 +436,15 @@ function IconButton({
       }}
       aria-label={label}
       title={label}
-      className="glass flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-300 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95"
+      className="glass relative flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-300 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95"
     >
       {children}
+      {badge && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
+          <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-[#0d0f16] bg-amber-400" />
+        </span>
+      )}
     </button>
   );
 }

@@ -39,6 +39,13 @@ jogo, 4 dificuldades e recordes guardados no dispositivo.
 - **Som realista sintetizado** (WebAudio, sem ficheiros): snap de plástico por camadas com
   variação de tom, pan estéreo por eixo e reverb — e **vibração**, ambos desativáveis
 - **Ícone e splash nativos** (Android adaptativo + legado, Electron Win/mac/Linux)
+- **4 idiomas** — Português, English, Français, Español (deteção automática;
+  mudar no menu 🌐 ou em Definições → Idioma)
+- **Botão voltar** — o ← no canto superior esquerdo, a tecla `Esc` (PC) e o botão
+  físico do Android devolvem ao menu em vez de fechar a app
+- **Verificação de atualizações** — consulta as releases do GitHub 1×/24 h em segundo
+  plano (com aviso no menu Definições) e permite descarregar a nova versão dentro da
+  app (tab de browser in-app no Android); verificação manual em Definições → Atualizações
 - **Teclado no PC**: `U D L R F B` (com `Shift` para o movimento inverso)
 - Instalável como **app Android** (Capacitor) e **app de desktop** (Electron)
 
