@@ -34,6 +34,8 @@ import { WinOverlay } from "./WinOverlay";
 import { FailOverlay } from "./FailOverlay";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
+import { StatsDialog } from "./StatsDialog";
+import { TutorialOverlay } from "./TutorialOverlay";
 import { UpdateDialog } from "./UpdateDialog";
 
 const CubeCanvas = dynamic(() => import("./CubeCanvas"), { ssr: false });
@@ -42,10 +44,13 @@ const CubeCanvas = dynamic(() => import("./CubeCanvas"), { ssr: false });
 export default function GameShell() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const helpOpenRef = useRef(helpOpen);
   const settingsOpenRef = useRef(settingsOpen);
+  const statsOpenRef = useRef(statsOpen);
   helpOpenRef.current = helpOpen;
   settingsOpenRef.current = settingsOpen;
+  statsOpenRef.current = statsOpen;
 
   const t = useT();
   const locale = useGameStore((s) => s.locale);
@@ -67,6 +72,7 @@ export default function GameShell() {
   const studyEndsAt = useGameStore((s) => s.studyEndsAt);
   const studyTotalMs = useGameStore((s) => s.studyTotalMs);
   const marathonStage = useGameStore((s) => s.marathonStage);
+  const tutorialStep = useGameStore((s) => s.tutorialStep);
   const { scramble, solve, undo, redo, reset, toggleSound, startGame } = useGameStore.getState();
 
   // cronómetro
@@ -96,14 +102,19 @@ export default function GameShell() {
     document.documentElement.lang = locale;
   }, [t, locale]);
 
-  // teclado (PC): letras rodam faces; Esc volta ao menu
+  // teclado (PC): letras rodam faces; Esc fecha tutorial → volta ao menu
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const st = useGameStore.getState();
       if (e.key === "Escape") {
-        if (helpOpenRef.current || settingsOpenRef.current) return; // o diálogo trata do Esc
+        if (helpOpenRef.current || settingsOpenRef.current || statsOpenRef.current) return; // o diálogo trata do Esc
         if (st.updateDialogOpen) return;
+        if (st.tutorialStep !== null) {
+          e.preventDefault();
+          st.endTutorial(false);
+          return;
+        }
         if (st.status !== "menu") {
           e.preventDefault();
           st.goMenu();
@@ -140,8 +151,16 @@ export default function GameShell() {
             setSettingsOpen(false);
             return;
           }
+          if (statsOpenRef.current) {
+            setStatsOpen(false);
+            return;
+          }
           if (st.updateDialogOpen) {
             st.dismissUpdateDialog();
+            return;
+          }
+          if (st.tutorialStep !== null) {
+            st.endTutorial(false);
             return;
           }
           if (st.status !== "menu") {
@@ -169,10 +188,18 @@ export default function GameShell() {
     return () => clearTimeout(id);
   }, []);
 
+  // tutorial interativo na primeira utilização
+  useEffect(() => {
+    if (useGameStore.getState().tutorialSeen) return;
+    const id = setTimeout(() => useGameStore.getState().startTutorial(), 700);
+    return () => clearTimeout(id);
+  }, []);
+
   const theme = themeById(themeId);
   const inGame = status !== "menu";
   const busy = status === "scrambling" || status === "solving";
   const playing = status === "playing";
+  const tutorialActive = status === "menu" && tutorialStep !== null;
   const updateBadge = updateState === "available";
 
   // ------- indicadores por modo
@@ -212,20 +239,14 @@ export default function GameShell() {
                 playClick();
                 useGameStore.getState().goMenu();
               }}
-              className="glass flex items-center gap-1.5 rounded-2xl p-1 pr-2 transition-opacity hover:opacity-85"
+              className="glass flex items-center gap-1.5 rounded-2xl py-1 pl-1 pr-2.5 transition-opacity hover:opacity-85"
               aria-label={t("aria.back")}
               title={t("aria.back")}
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-white/10 text-zinc-200">
                 <ArrowLeft className="h-4 w-4" strokeWidth={2.4} />
               </span>
-              <img
-                src="/logo.svg"
-                alt=""
-                draggable={false}
-                className="h-8 w-8 rounded-lg shadow-sm shadow-orange-500/30"
-              />
-              <span className="hidden text-sm font-bold tracking-tight sm:block">C-Cube</span>
+              <span className="text-sm font-semibold text-zinc-200">{t("action.menu")}</span>
             </button>
 
             <div className="glass flex items-center gap-2.5 rounded-2xl px-3 py-2 sm:px-4">
@@ -397,12 +418,18 @@ export default function GameShell() {
       </AnimatePresence>
 
       {/* ecrãs */}
-      <AnimatePresence>{status === "menu" && <MenuOverlay key="menu" onHelp={() => setHelpOpen(true)} />}</AnimatePresence>
+      <AnimatePresence>{tutorialActive && <TutorialOverlay key="tutorial" />}</AnimatePresence>
+      <AnimatePresence>
+        {status === "menu" && !tutorialActive && (
+          <MenuOverlay key="menu" onHelp={() => setHelpOpen(true)} onStats={() => setStatsOpen(true)} />
+        )}
+      </AnimatePresence>
       <WinOverlay />
       <FailOverlay />
 
       <HelpDialog open={helpOpen} onOpenChange={(v) => { setHelpOpen(v); if (!v) playClick(); }} />
       <SettingsDialog open={settingsOpen} onOpenChange={(v) => { setSettingsOpen(v); if (!v) playClick(); }} />
+      <StatsDialog open={statsOpen} onOpenChange={(v) => { setStatsOpen(v); if (!v) playClick(); }} />
       <UpdateDialog />
 
       {/* ecrã inicial discreto para começar (autoplay/áudio) */}

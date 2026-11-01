@@ -93,6 +93,89 @@ export interface WinInfo {
   final?: boolean; // maratona: última etapa
 }
 
+/** Resultado de uma partida (para o histórico recente das estatísticas). */
+export interface GameResult {
+  t: number; // data (epoch ms)
+  m: GameMode;
+  s: number; // tamanho do cubo
+  ms: number; // duração
+  mv: number; // movimentos
+  w: boolean; // vitória
+  r?: FailReason; // razão da falha
+}
+
+export interface ModeStats {
+  played: number;
+  solved: number;
+  failed: number;
+  bestMs: number | null; // melhor tempo (modos com tempo)
+  bestMoves: number | null; // melhor contagem (eficiência)
+}
+
+export interface StatsData {
+  played: number;
+  solved: number;
+  failed: number;
+  streak: number;
+  bestStreak: number;
+  timeMs: number; // tempo total em jogo (vitórias + falhas)
+  moves: number; // movimentos somados das vitórias
+  perMode: Record<string, ModeStats>;
+  recent: GameResult[]; // últimos ~24 resultados
+}
+
+function emptyStats(): StatsData {
+  return {
+    played: 0,
+    solved: 0,
+    failed: 0,
+    streak: 0,
+    bestStreak: 0,
+    timeMs: 0,
+    moves: 0,
+    perMode: {},
+    recent: [],
+  };
+}
+
+function loadStats(): StatsData {
+  if (typeof window === "undefined") return emptyStats();
+  try {
+    const raw = window.localStorage.getItem(STATS_KEY);
+    if (raw) return { ...emptyStats(), ...(JSON.parse(raw) as StatsData) };
+  } catch {
+    /* ignorar */
+  }
+  return emptyStats();
+}
+
+function saveStats(s: StatsData): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STATS_KEY, JSON.stringify(s));
+  } catch {
+    /* ignorar */
+  }
+}
+
+function loadTutorialSeen(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(TUTORIAL_KEY) === "seen";
+  } catch {
+    return true;
+  }
+}
+
+function saveTutorialSeen(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TUTORIAL_KEY, "seen");
+  } catch {
+    /* ignorar */
+  }
+}
+
 interface Settings {
   themeId: string;
   soundOn: boolean;
@@ -104,6 +187,8 @@ interface Settings {
 
 const SETTINGS_KEY = "ccube:v1:settings";
 const BESTS_KEY = "ccube:v1:bests";
+const STATS_KEY = "ccube:v1:stats";
+const TUTORIAL_KEY = "ccube:v1:tutorial";
 
 function loadSettings(): Settings {
   const fallback: Settings = {
@@ -220,6 +305,13 @@ interface GameState {
   updateInfo: ReleaseInfo | null;
   updateDialogOpen: boolean;
 
+  // tutorial interativo: null = inativo; 0 boas-vindas, 1 orbitar, 2 rodar camada, 3 pronto
+  tutorialStep: number | null;
+  tutorialSeen: boolean;
+
+  // estatísticas de progresso
+  stats: StatsData;
+
   setView: (v: CubeView | null) => void;
   startGame: () => void;
   goMenu: () => void;
@@ -249,6 +341,14 @@ interface GameState {
   backgroundUpdateCheck: () => void;
   dismissUpdateDialog: () => void;
   openUpdateDialog: () => void;
+
+  // tutorial
+  startTutorial: () => void;
+  tutorialGesture: (kind: "orbit" | "turn") => void;
+  endTutorial: (play: boolean) => void;
+
+  // estatísticas
+  clearStats: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => {
@@ -261,6 +361,65 @@ export const useGameStore = create<GameState>((set, get) => {
 
   // último segundo anunciado no countdown do Sprint (para não repetir tiques)
   let lastCountdownSec = -1;
+
+  /** Atualiza as estatísticas de progresso e persiste. */
+  const bumpStats = (fn: (s: StatsData) => StatsData) => {
+    const next = fn(get().stats);
+    set({ stats: next });
+    saveStats(next);
+  };
+
+  const modeBucket = (s: StatsData, m: GameMode): ModeStats =>
+    s.perMode[m] ?? { played: 0, solved: 0, failed: 0, bestMs: null, bestMoves: null };
+
+  const recordStart = (mode: GameMode) =>
+    bumpStats((s) => {
+      const b = modeBucket(s, mode);
+      return {
+        ...s,
+        played: s.played + 1,
+        perMode: { ...s.perMode, [mode]: { ...b, played: b.played + 1 } },
+      };
+    });
+
+  const recordWin = (mode: GameMode, size: number, ms: number, mv: number) =>
+    bumpStats((s) => {
+      const b = modeBucket(s, mode);
+      const streak = s.streak + 1;
+      const res: GameResult = { t: Date.now(), m: mode, s: size, ms, mv, w: true };
+      return {
+        ...s,
+        solved: s.solved + 1,
+        streak,
+        bestStreak: Math.max(s.bestStreak, streak),
+        timeMs: s.timeMs + ms,
+        moves: s.moves + mv,
+        perMode: {
+          ...s.perMode,
+          [mode]: {
+            ...b,
+            solved: b.solved + 1,
+            bestMs: b.bestMs === null ? ms : Math.min(b.bestMs, ms),
+            bestMoves: b.bestMoves === null ? mv : Math.min(b.bestMoves, mv),
+          },
+        },
+        recent: [...s.recent, res].slice(-24),
+      };
+    });
+
+  const recordFail = (mode: GameMode, size: number, ms: number, mv: number, reason: FailReason) =>
+    bumpStats((s) => {
+      const b = modeBucket(s, mode);
+      const res: GameResult = { t: Date.now(), m: mode, s: size, ms, mv, w: false, r: reason };
+      return {
+        ...s,
+        failed: s.failed + 1,
+        streak: 0,
+        timeMs: s.timeMs + ms,
+        perMode: { ...s.perMode, [mode]: { ...b, failed: b.failed + 1 } },
+        recent: [...s.recent, res].slice(-24),
+      };
+    });
 
   const persist = () => {
     const s = get();
@@ -281,8 +440,11 @@ export const useGameStore = create<GameState>((set, get) => {
   };
 
   const enterFail = (reason: FailReason) => {
-    if (get().status !== "playing") return;
+    const st = get();
+    if (st.status !== "playing") return;
     playFail();
+    const ms = st.startedAt ? Date.now() - st.startedAt : st.elapsedMs;
+    recordFail(st.mode, st.size, ms, st.moveCount, reason);
     set({ status: "failed", failReason: reason, timerRunning: false });
   };
 
@@ -320,6 +482,10 @@ export const useGameStore = create<GameState>((set, get) => {
     updateInfo: null,
     updateDialogOpen: false,
 
+    tutorialStep: null,
+    tutorialSeen: loadTutorialSeen(),
+    stats: loadStats(),
+
     setView: (v) => set({ view: v }),
 
     startGame: () => {
@@ -329,6 +495,7 @@ export const useGameStore = create<GameState>((set, get) => {
         st.view?.setSize(MARATHON_STAGES[0]);
         set({ size: MARATHON_STAGES[0] });
       }
+      recordStart(get().mode);
       set({
         status: "idle",
         scrambled: false,
@@ -352,6 +519,9 @@ export const useGameStore = create<GameState>((set, get) => {
       set({ status: "menu" });
       clearMemory();
       get().view?.setIdle(true);
+      // aborta scramble/solve em curso: sem isto, onQueueEmpty repunha o
+      // estado "idle" e o utilizador era puxado de volta para o jogo
+      get().view?.clearQueue();
     },
 
     setSize: (n) => {
@@ -459,6 +629,40 @@ export const useGameStore = create<GameState>((set, get) => {
     dismissUpdateDialog: () => set({ updateDialogOpen: false }),
     openUpdateDialog: () => set({ updateDialogOpen: true }),
 
+    // ------------------------------------------------------------ tutorial
+    startTutorial: () => {
+      const st = get();
+      if (st.status !== "menu") return;
+      playClick();
+      set({ tutorialStep: 0 });
+      st.view?.resetView();
+    },
+
+    tutorialGesture: (kind) => {
+      const step = get().tutorialStep;
+      if (step === 1 && kind === "orbit") {
+        playSnap("y", false);
+        set({ tutorialStep: 2 });
+      } else if (step === 2 && kind === "turn") {
+        playSnap("y", false);
+        set({ tutorialStep: 3 });
+      }
+    },
+
+    endTutorial: (play) => {
+      saveTutorialSeen();
+      set({ tutorialStep: null, tutorialSeen: true });
+      if (play) get().startGame();
+      else playClick();
+    },
+
+    // -------------------------------------------------------- estatísticas
+    clearStats: () => {
+      const fresh = emptyStats();
+      set({ stats: fresh });
+      saveStats(fresh);
+    },
+
     scramble: (opts) => {
       const { status, size, mode, difficulty, view } = get();
       if (status === "menu" || status === "scrambling" || status === "solving" || !view) return;
@@ -539,8 +743,17 @@ export const useGameStore = create<GameState>((set, get) => {
     },
 
     userMove: (m) => {
-      const { status, view, memoryPhase } = get();
-      if ((status !== "idle" && status !== "playing") || !view) return;
+      const { status, view, memoryPhase, tutorialStep } = get();
+      if (!view) return;
+      const inTutorial = status === "menu" && tutorialStep !== null;
+      if (!inTutorial && status !== "idle" && status !== "playing") return;
+      if (inTutorial) {
+        // no tutorial (sobre o menu) os movimentos animam mas não contam;
+        // cada rotação de camada faz avançar o passo
+        get().tutorialGesture("turn");
+        view.enqueueMove({ ...m, source: "user" });
+        return;
+      }
       if (memoryPhase === "study") {
         // no modo Memória, mover durante a memorização inicia o jogo imediatamente
         set({ memoryPhase: "blind", studyEndsAt: null });
@@ -630,6 +843,7 @@ export const useGameStore = create<GameState>((set, get) => {
         }
 
         if (after.soundOn) playWin();
+        recordWin(after.mode, after.size, timeMs, after.moveCount);
         set({
           status: "won",
           timerRunning: false,
@@ -764,4 +978,5 @@ export const viewCallbacks = {
   onMoveCommitted: (m: Move) => useGameStore.getState().commitMove(m),
   onUserGestureMove: (m: Move) => useGameStore.getState().userMove(m),
   onQueueEmpty: () => useGameStore.getState().onQueueEmpty(),
+  onOrbit: () => useGameStore.getState().tutorialGesture("orbit"),
 };

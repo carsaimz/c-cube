@@ -33,6 +33,10 @@ jogo, 4 dificuldades e recordes guardados no dispositivo.
 - **4 dificuldades** (Fácil, Normal, Difícil, Extremo) — mudam o tamanho do embaralhamento e
   os limites de tempo/movimentos/memorização; cada combinação tem recorde próprio
 - **Embaralhar** com notação SiGN visível e **Resolver** passo a passo (reverte o histórico)
+- **Tutorial interativo** — na primeira utilização (e revivível no menu): pratica os dois
+  gestos reais no cubo (orbitar a câmara e rodar uma camada) antes de jogar
+- **Estatísticas de progresso** — resolvidos, taxa de sucesso, melhor sequência, tempo de
+  jogo, média por resolução, resumo por modo e histórico das últimas partidas
 - **Desfazer / Refazer / Reiniciar** ilimitados
 - **Cronómetro e contador de movimentos** — o tempo começa no teu primeiro movimento
 - **4 temas**: Clássico, Neon (adesivos brilhantes), Pastel e Carbono

@@ -10,6 +10,7 @@ export default function CubeCanvas() {
   const size = useGameStore((s) => s.size);
   const themeId = useGameStore((s) => s.themeId);
   const status = useGameStore((s) => s.status);
+  const tutorialStep = useGameStore((s) => s.tutorialStep);
 
   useEffect(() => {
     const el = ref.current;
@@ -20,6 +21,7 @@ export default function CubeCanvas() {
     useGameStore.getState().setView(view);
     // depuração nos testes (não afeta a jogabilidade)
     (window as unknown as { __ccube?: CubeView }).__ccube = view;
+    (window as unknown as { __ccubeStore?: typeof useGameStore }).__ccubeStore = useGameStore;
     return () => {
       useGameStore.getState().setView(null);
       view.dispose();
@@ -35,10 +37,12 @@ export default function CubeCanvas() {
   }, [themeId]);
 
   useEffect(() => {
-    useGameStore.getState().view?.setIdle(status === "menu");
+    // durante o tutorial (sobre o menu) a rotação automática pausa — o cubo
+    // fica parado para o utilizador praticar os gestos
+    useGameStore.getState().view?.setIdle(status === "menu" && tutorialStep === null);
     // em jogo, centrar o cubo na zona livre entre o HUD e a barra de controlos
     useGameStore.getState().view?.setFramed(status !== "menu");
-  }, [status]);
+  }, [status, tutorialStep]);
 
   return <div ref={ref} className="absolute inset-0 overflow-hidden" aria-hidden="true" />;
 }

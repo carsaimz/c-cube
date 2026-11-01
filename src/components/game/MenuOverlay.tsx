@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { Box, Brain, CircleHelp, Flag, Globe, Play, Target, Timer, Volume2, VolumeX } from "lucide-react";
+import { BarChart3, Box, Brain, CircleHelp, Flag, Globe, GraduationCap, Play, Target, Timer, Volume2, VolumeX } from "lucide-react";
 import {
   type Difficulty,
   DIFFICULTIES,
@@ -44,7 +44,13 @@ function modeRules(t: ReturnType<typeof useT>, mode: string, size: number, diff:
 }
 
 /** Menu principal — mostrado sobre a cena 3D (o cubo flutua atrás). */
-export function MenuOverlay({ onHelp }: { onHelp: () => void }) {
+export function MenuOverlay({
+  onHelp,
+  onStats,
+}: {
+  onHelp: () => void;
+  onStats: () => void;
+}) {
   const t = useT();
   const locale = useGameStore((s) => s.locale);
   const setLocale = useGameStore((s) => s.setLocale);
@@ -184,6 +190,26 @@ export function MenuOverlay({ onHelp }: { onHelp: () => void }) {
           <Play className="h-5 w-5 fill-current" />
           {t("action.play")}
         </motion.button>
+
+        {/* tutorial + estatísticas */}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => useGameStore.getState().startTutorial()}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 py-2.5 text-sm font-semibold text-zinc-200 transition-all hover:bg-white/15"
+            aria-label={t("aria.tutorial")}
+          >
+            <GraduationCap className="h-4.5 w-4.5 text-sky-300" />
+            {t("menu.tutorial")}
+          </button>
+          <button
+            onClick={onStats}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 py-2.5 text-sm font-semibold text-zinc-200 transition-all hover:bg-white/15"
+            aria-label={t("aria.stats")}
+          >
+            <BarChart3 className="h-4.5 w-4.5 text-amber-300" />
+            {t("menu.stats")}
+          </button>
+        </div>
 
         <div className="mt-4 flex items-center justify-between">
           <div className="flex items-center gap-2" role="group" aria-label={t("group.theme")}>

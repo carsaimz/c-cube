@@ -28,6 +28,8 @@ export interface CubeViewCallbacks {
   /** gesto do utilizador (arrastar num adesivo) — a store valida e re-enfileira */
   onUserGestureMove: (m: Move) => void;
   onQueueEmpty: () => void;
+  /** utilizador rodou/zoomou a câmara (usado no tutorial) */
+  onOrbit?: () => void;
 }
 
 interface Cubie {
@@ -126,6 +128,7 @@ export class CubeView {
   private frameShiftTarget = 0;
   private camTween: CamTween | null = null;
   private defaultCamPos = new THREE.Vector3();
+  private orbitDirty = false;
   private drag: {
     x0: number;
     y0: number;
@@ -160,6 +163,21 @@ export class CubeView {
     this.controls.dampingFactor = 0.08;
     this.controls.rotateSpeed = 0.85;
     this.controls.autoRotateSpeed = 1.1;
+    // deteção de órbita real (para o tutorial): 'change' dispara também com
+    // auto-rotação idle, por isso só conta se houver movimento entre o
+    // início ('start') e o fim ('end') do gesto do utilizador.
+    this.controls.addEventListener("start", () => {
+      this.orbitDirty = false;
+    });
+    this.controls.addEventListener("change", () => {
+      this.orbitDirty = true;
+    });
+    this.controls.addEventListener("end", () => {
+      if (this.orbitDirty) {
+        this.orbitDirty = false;
+        this.cb.onOrbit?.();
+      }
+    });
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.85);
     const hemi = new THREE.HemisphereLight(0xdfe8ff, 0x14161d, 0.5);
