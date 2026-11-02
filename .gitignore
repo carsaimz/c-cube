@@ -59,3 +59,10 @@ Thumbs.db
 
 # tool results
 /tool-results/
+
+# local
+.env
+.next-static/
+.next/
+tsconfig.tsbuildinfo
+tool-results/

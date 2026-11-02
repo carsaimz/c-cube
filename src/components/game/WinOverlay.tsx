@@ -1,8 +1,8 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Home, PartyPopper, Play, Trophy } from "lucide-react";
+import { ArrowRight, Check, Home, PartyPopper, Play, Share2, Trophy } from "lucide-react";
 import { MARATHON_STAGES, formatTime } from "@/lib/cube/engine";
 import { themeById } from "@/lib/cube/themes";
 import { playClick } from "@/lib/sound";
@@ -65,6 +65,73 @@ export function WinOverlay() {
     isStage && lastWin?.stageDone && lastWin.stageDone < MARATHON_STAGES.length
       ? MARATHON_STAGES[lastWin.stageDone]
       : null;
+
+  // ------------------------------------------------------------- partilhar
+  const [shareState, setShareState] = useState<"idle" | "copied" | "error">("idle");
+  const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (shareTimer.current) clearTimeout(shareTimer.current);
+  }, []);
+
+  const shareResult = async () => {
+    if (!lastWin) return;
+    const text = t("win.shareText", {
+      n: size,
+      mode: t(`mode.${lastWin.mode}.name`),
+      diff: t(`diff.${difficulty}`),
+      t: formatTime(lastWin.timeMs),
+      m: lastWin.moves,
+    });
+
+    // 1) partilha nativa (Android via Capacitor)
+    try {
+      const { Share } = await import("@capacitor/share");
+      if (await Share.canShare()) {
+        await Share.share({ title: "C-Cube", text });
+        return;
+      }
+    } catch (e) {
+      const msg = String((e as { message?: string })?.message ?? e).toLowerCase();
+      if (msg.includes("cancel")) return; // utilizador fechou a folha
+    }
+
+    // 2) Web Share API (PWA / browser móvel)
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: "C-Cube", text });
+        return;
+      } catch (e) {
+        if ((e as DOMException)?.name === "AbortError") return; // cancelado
+      }
+    }
+
+    // 3) fallback: copiar para a área de transferência
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareState("copied");
+    } catch {
+      // última alternativa: textarea + execCommand (webviews antigos / Electron)
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        setShareState(ok ? "copied" : "error");
+      } catch {
+        setShareState("error");
+      }
+    }
+    if (shareTimer.current) clearTimeout(shareTimer.current);
+    shareTimer.current = setTimeout(() => setShareState("idle"), 2400);
+  };
+
+  const shareLabel =
+    shareState === "copied" ? t("win.copied") : shareState === "error" ? t("win.shareFail") : t("win.share");
 
   return (
     <AnimatePresence onExitComplete={() => dismissWin()}>
@@ -161,16 +228,34 @@ export function WinOverlay() {
                 {t("action.playAgain")}
               </motion.button>
             )}
-            <button
-              onClick={() => {
-                playClick();
-                goMenu();
-              }}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-white/5 py-3 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/10"
-            >
-              <Home className="h-4 w-4" />
-              {t("action.menu")}
-            </button>
+            {!isStage && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <motion.button
+                  onClick={() => void shareResult()}
+                  whileTap={{ scale: 0.96 }}
+                  className={`flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-colors ${
+                    shareState === "copied"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : shareState === "error"
+                        ? "bg-red-500/20 text-red-300"
+                        : "bg-white/10 text-zinc-200 hover:bg-white/15"
+                  }`}
+                >
+                  {shareState === "copied" ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+                  {shareLabel}
+                </motion.button>
+                <button
+                  onClick={() => {
+                    playClick();
+                    goMenu();
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-2xl bg-white/5 py-3 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/10"
+                >
+                  <Home className="h-4 w-4" />
+                  {t("action.menu")}
+                </button>
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}

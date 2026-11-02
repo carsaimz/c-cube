@@ -239,14 +239,11 @@ export default function GameShell() {
                 playClick();
                 useGameStore.getState().goMenu();
               }}
-              className="glass flex items-center gap-1.5 rounded-2xl py-1 pl-1 pr-2.5 transition-opacity hover:opacity-85"
+              className="glass flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-300 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95"
               aria-label={t("aria.back")}
               title={t("aria.back")}
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-white/10 text-zinc-200">
-                <ArrowLeft className="h-4 w-4" strokeWidth={2.4} />
-              </span>
-              <span className="text-sm font-semibold text-zinc-200">{t("action.menu")}</span>
+              <ArrowLeft className="h-5 w-5" strokeWidth={2.2} />
             </button>
 
             <div className="glass flex items-center gap-2.5 rounded-2xl px-3 py-2 sm:px-4">
